@@ -1,0 +1,41 @@
+---
+title: "Study of weather harmful events in US (1950-2011)"
+author: "José Manuel Peñas"
+date: "18 de mayo de 2018"
+output: html_document
+---
+## Synopsis
+
+
+
+
+
+## Data Processing
+
+From the US **National Weather Service** I have got a file with data recorded about the weather events, storms, since **1950** to November of **2011**.  
+The data for this assignment come in the form of a comma-separated-value file compressed via the **bzip2** algorithm to reduce its size. You can download the file from the course web [site](https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2).  
+The information about the variables of the file can be consulted on the following links:
+
+- National Weather Service [Storm Data Documentation](https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2Fpd01016005curr.pdf)
+- National Climatic Data Center Storm Events [FAQ](https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2FNCDC%20Storm%20Events-FAQ%20Page.pdf) 
+
+### KNTIR Setup
+First, the **knitr** preferences and required libraries for the next r code chunks are set.
+```{r setup}
+knitr::opts_chunk$set(echo = TRUE)
+require(ggplot2)
+```
+
+```{r cars}
+summary(cars)
+```
+
+## Results
+
+You can also embed plots, for example:
+
+```{r pressure}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
