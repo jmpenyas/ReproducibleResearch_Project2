@@ -1,18 +1,21 @@
 ---
 title: "Study of weather harmful events in US (1950-2011)"
 author: "José Manuel Peñas"
-date: "18 de mayo de 2018"
+date: "19 de mayo de 2018"
 output: html_document
 ---
 ## Synopsis
+The following document studies the data recorded by the **US National Weather Service** of relevant weather events in the period **1950-2011**.   
+It analyses those events grouping by types and obtains which ones have caused more **human** and **economic** losses.
+The study concludes that:
 
-
-
+- **TORNADOS** are the most harmful events from the **human** perspective with  more than **96,000** casualties, deaths and injured.
+- **FLOODS** are the events that provokes heaviest **economic** losses with more than **$150 billions** on damage in the period to **property** and **agriculture**.
 
 
 ## Data Processing
 
-From the US **National Weather Service** I have got a file with data recorded about the weather events, storms, since **1950** to November of **2011**.  
+From the **US National Weather Service** I have got a file with data recorded about the weather events, storms, since **1950** to November of **2011**.  
 The data for this assignment come in the form of a comma-separated-value file compressed via the **bzip2** algorithm to reduce its size. You can download the file from the course web [site](https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2).  
 The information about the variables of the file can be consulted on the following links:
 
@@ -20,22 +23,155 @@ The information about the variables of the file can be consulted on the followin
 - National Climatic Data Center Storm Events [FAQ](https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2FNCDC%20Storm%20Events-FAQ%20Page.pdf) 
 
 ### KNTIR Setup
-First, the **knitr** preferences and required libraries for the next r code chunks are set.
+First, the **knitr** preferences and required libraries for the next r code chunks are set. 
+- Cache is used due to size of the data set
+- All the code is visible
 ```{r setup}
-knitr::opts_chunk$set(echo = TRUE)
+require(knitr)
 require(ggplot2)
+require(dplyr)
+options(scipen = 999)
+knitr::opts_chunk$set(echo = TRUE)
+```
+### Download & dataset creation
+Downloading the file from **National Web Service** [link](https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2) and reading the **bz2** file with *read.csv* and storing it at a data frame.
+```{r download, cache = T}
+if(!file.exists("./data/StormData.csv.bz2"))
+        download.file(
+        "https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2",
+        "./data/StormData.csv.bz2"
+        )
+        storms = read.csv("./data/StormData.csv.bz2", stringsAsFactors = F
+        )
+```
+Checking the right size and format of the data set
+```{r dataCheck}
+dim(storms)
+head(storms)
+```
+The data set has **902,297** observations of **37** variables.  
+
+### Analysis of the dataset
+After checking the data set and questions to answer, I have reached to the following conclusions:   
+
+- I only need a **fraction** of the columns
+- So the economic as the human impact have to be processed cause the information is stored in **two columns** in both cases, **damage** and **exp factor**.  
+- I need to obtain the **totals** of economic and human damage grouped **by type of event**.  
+
+### Simplifying the dataset  
+Creating a new data set with only  *type of event, injuries, fatalities* and *economic damage** columns.
+```{r ProcessedStorm}
+processedStorms = storms[, c(
+        "EVTYPE",
+        "FATALITIES",
+        "INJURIES",
+        "PROPDMG",
+        "PROPDMGEXP",
+        "CROPDMG",
+        "CROPDMGEXP"
+        )]
+# Checking the new dataset contains the information I want
+dim(processedStorms)
+head(processedStorms)
+```
+### Creating Total Human and economic damage columns  
+Human damage is stored in two columns *FATALITIES* and *INJURIES*. They are going to be joined in only one, adding both. I am not sure if both columns should be **treated equally** as a death is more severe than a injured but as I don't know how to measure this severity, I'd rather to keep it simple.
+```{r humanDmg}
+processedStorms$HumanDmg = processedStorms$FATALITIES + processedStorms$INJURIES
+# Checking the new dataset contains the information I want
+dim(processedStorms)
+head(processedStorms)
 ```
 
-```{r cars}
-summary(cars)
+Economic Damage is stored in four columns *PROPDMG, PROPDMGEXP,CROPDMG* and *CROPDMGEXP* that represent the property and crop damage with their multiplying factors.    
+Checking the values stored on the multiplying columns, 
+```{r ExpValues}
+unique(processedStorms$PROPDMGEXP)
+unique(processedStorms$CROPDMGEXP)
+```
+it's clear their content are not as correct as the documentation says.   
+I create the following function that will transform the content of the **EXP** columns into the right number to be multiplied for. 
+```{r multFunction, cache=F}
+multFact <- function (fact){
+        mult = 10^0
+        # Numeric factors as exponents on 10 base 
+        if (is.numeric(fact)) 
+                mult = 10^fact
+        # American billions
+        else if (fact == "B" | fact =="b") {
+                mult = 10^9
+        } 
+        # Millions
+        else if (fact == "M" | fact =="m") {
+                mult = 10^6
+        } 
+        # Thousands
+        else if (fact == "K" | fact =="K") {
+                mult = 10^3
+        }
+        # Hundreds
+        else if (fact == "H" | fact =="h") {
+                mult = 10^2
+        } 
+        # The rest of values are considered as wrong ones
+        else{
+                mult =10^0}
+        mult
+}
+```
+
+
+All this information is going to be stored in only one column in order to ease the study.
+```{r econDmg, cache =TRUE}
+# Getting Multiplying value
+PropExpValues = sapply(processedStorms$PROPDMGEXP, FUN = multFact)
+CropExpValues = sapply(processedStorms$CROPDMGEXP, FUN = multFact)
+# Loading the result of multiplying the dmg for its factor
+processedStorms$EconDmg = (processedStorms$PROPDMG*PropExpValues) + (processedStorms$CROPDMG*CropExpValues)
+# Checking the new dataset contains the information I want
+dim(processedStorms)
+head(processedStorms)
+```
+### Creating DataSet with totals by event type
+```{r totals}
+totalStorms = processedStorms %>%  group_by(EVTYPE) %>% summarise(
+        HumanDamage = sum(HumanDmg, na.rm = T),
+        EconomicDamage = sum(EconDmg, na.rm = T)
+)
+# Checking the new dataset contains the information I want
+dim(totalStorms)
+head(totalStorms)
+```
+The resulting data set has **985** different event type and it's impossible getting graphical conclusions with so many types. It should be necessary to reduce these types to the ones reflected on the [documentation](https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2Fpd01016005curr.pdf) but that table cannot be loaded by script and would invalidate the reproducible research of my peers.  
+Therefore, two new data sets are going to be created with the **Top 10 Events** of both categories: human and economic damage.
+```{r top10}
+humanTop10 = totalStorms[, c("EVTYPE", "HumanDamage")] %>% top_n(10, HumanDamage) %>% arrange(desc(HumanDamage))
+EconomicTop10  = totalStorms[, c("EVTYPE", "EconomicDamage")] %>% top_n(10, EconomicDamage) %>% arrange(desc(EconomicDamage))
+# Checking the two new datasets contain the information I want
+humanTop10
+EconomicTop10
 ```
 
 ## Results
+You can find the results to the two questions of this project under this section.   
+It's relevant to notice before showing the results that the event types should have been unified but as it was stated early, it could not be possible as there was not source that could be scripted.
 
-You can also embed plots, for example:
+### 1. Across the United States, which types of events (as indicated in the EVTYPE variable) are most harmful with respect to population health?
+```{r HumanFigure}
+ggplot(humanTop10, aes(x=reorder(EVTYPE,-HumanDamage), y=HumanDamage)) + geom_bar(stat="identity",fill = "blue",
+        alpha = .2) + theme(axis.text.x = element_text(angle = 270, hjust = 1, size = 7)) + labs(title = "Top 10 Event Types Casualties in US 1950-2011", x = "Event Type", y = "Casualties")
 
-```{r pressure}
-plot(pressure)
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+As it can be observed in the figure, **TORNADOS** are the most human harmful weather events in the US. They have caused almost **100.000** total casualties, between fatalities and injured.   
+
+### 2. Across the United States, which types of events have the greatest economic consequences?
+```{r EconFigure}
+ggplot(EconomicTop10, aes(x=reorder(EVTYPE,-EconomicDamage), y=EconomicDamage/10^9)) + geom_bar(stat="identity",fill = "green",
+        alpha = .2) + theme(axis.text.x = element_text(angle = 270, hjust = 1, size = 7)) + labs(title = "Top 10 Event Types Economic Damage in US 1950-2011", x = "Event Type", y = "Economic Damage (Billions of $)")
+
+```
+
+**FLOODS** are the weather event with more economic impact, over **$150 billions** in losses, so property's as crop's damage. **HURRICANES & TYPHOONS** and **TORNADOS** follow in distant second and third place, with **71** and **57** billions.
+
+
